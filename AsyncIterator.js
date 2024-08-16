@@ -1,3 +1,10 @@
+function forEach (call, ...thisArg) {
+  (this[Symbol.iterator]      && import("./forEach/sync.js").then((forEach) => forEach.call(this, call, ...thisArg))) ||
+  (this[Symbol.asyncIterator] && import("./forEach/async.js").then((forEach) => forEach.call(this, call, ...thisArg))) ||
+  (this.then                  && this.then((context) => forEach.call(context, call, ...thisArg))) ||
+  (thisArg.length ? call.call(thisArg[0], this) : call(this));
+  return this;
+}
 var reducer = (sync, async) => function (...thisArg) {
   return (this[Symbol.iterator]      && import(sync).then((reduce) => reduce.apply(this, thisArg)))                  ||
          (this[Symbol.asyncIterator] && import(async).then((reduce) => reduce.apply(this, thisArg)))                 ||
@@ -65,6 +72,10 @@ async function*fulfilled() {
 }
 
 class AI {
+  static from (value) {
+    return new AI(value);
+  }
+
   static flyWeight = new WeakMap();
   constructor (value) {
     if (value && value.constructor === AI) return value;
@@ -81,6 +92,10 @@ class AI {
   finally (done) {
     var exec = () => done();
     then.call(this, exec, exec);
+    return this;
+  }
+  forEach (call, ...thisArg) {
+    (forEach.call(this.value, call, ...thisArg));
     return this;
   }
   map (call, ...thisArg) {
@@ -126,10 +141,14 @@ async function*test(x) {
   }
 }
 
-new AI("123")
-  .map(Number)
-  .reverse()
-// .reduce((x, y) => +x + y, 0)
-  .then(console.log)
+AI
+  .from("123")
+// .map(Number)
+// .reverse()
+  .forEach(console.log)
+  .forEach(console.log)
+  .forEach(console.log)
+// .reduce((x, y) => x + y)
+// .then(console.log)
 ;
 
