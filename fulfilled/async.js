@@ -1,7 +1,5 @@
-var module = import("../ci/async.js").then((module) => module.default);
-var ci = (iterator) => module.then((ci) => ci(iterator));
-export default async function*fulfilled() {
-  var iterator = await ci(this);
+var then = (resolve) => resolve(async function*fulfilled() {
+  var iterator = (this)[Symbol.asyncIterator]();
   while (true) {
     var promise = iterator.next();
     try{
@@ -10,4 +8,4 @@ export default async function*fulfilled() {
       yield value;
     }catch(_){}
   }
-};
+});
