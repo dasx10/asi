@@ -1,33 +1,18 @@
-function forEach (call, ...thisArg) {
-  (this[Symbol.iterator]      && import("./forEach/sync.js").then((forEach) => forEach.call(this, call, ...thisArg))) ||
-  (this[Symbol.asyncIterator] && import("./forEach/async.js").then((forEach) => forEach.call(this, call, ...thisArg))) ||
-  (this.then                  && this.then((context) => forEach.call(context, call, ...thisArg))) ||
-  (thisArg.length ? call.call(thisArg[0], this) : call(this));
-  return this;
-}
-var reducer = (sync, async) => function (...thisArg) {
-  return (this[Symbol.iterator]      && import(sync).then((reduce) => reduce.apply(this, thisArg)))                  ||
-         (this[Symbol.asyncIterator] && import(async).then((reduce) => reduce.apply(this, thisArg)))                 ||
-         (this.then                  && this.then((context) => reduce.apply(context, thisArg)))                      ||
-         (thisArg.length > 1         && Promise.all(thisArg).then(({ 0: call, 1: thisArg }) => call(thisArg, this))) ||
-         Promise.resolve(this)
-  ;
-}
-var reduce      = reducer("./reduce/sync.js", "./reduce/async.js");
-var reduceRight = reducer("./reduceRight/sync.js", "./reduceRight/async.js");
-
-function length () {
-  return (this.length && Promise.resolve(this.length))                                                   ||
-         (this.size && Promise.resolve(this.size))                                                       ||
-         (this[Symbol.iterator] && import("./length/sync.js").then((length) => length.call(this)))       ||
-         (this[Symbol.asyncIterator] && import("./length/async.js").then((length) => length.call(this))) ||
-         (this.then && this.then((values) => length.call(values))) ||
-         Promise.resolve(1)
-  ;
-}
+import ci from "./ci/sync.js";
+var modules = new Map();
+var loads = new Map();
+var load = (path) => function (...args) {
+  return modules.has(path)
+    ? modules.get(path).call(this, ...args)
+    : loads.has(path)
+      ? loads.get(path).then((module) => module.call(this, ...args))
+      : loads.set(path, import(path).then((module) => (loads.delete(path), modules.set(path, module), module))).get(path).then((module) => module.call(this, ...args))
+};
 
 function then (right, left) {
-  return ((right || left) &&
+  return (
+    (this == null && Promise.resolve(this)) ||
+    (right || left) &&
          (this[Symbol.iterator] && right && import("./ci/sync.js").then((module) => Promise.all(module(this)).then(right, left))) ||
          (this[Symbol.asyncIterator] && right && import("./ci/async.js").then((module) => Array.fromAsync(module(this)).then(right, left))) ||
          (this.then && right && this.then((values) => then.call(values, right, left)))
@@ -36,15 +21,6 @@ function then (right, left) {
     (right && Promise.resolve(right(this))) ||
          this
   ;
-}
-
-async function*map(call, ...thisArg) {
-       if (call.then) call = await call;
-       if (this[Symbol.iterator])      yield*(await import("./map/sync.js")).default.call(this, call, ...thisArg);
-  else if (this[Symbol.asyncIterator]) yield*(await import("./map/async.js")).default.call(this, call, ...thisArg);
-  else if (this.then)                  yield*map.call(await this, call, ...thisArg);
-  else if (thisArg.length)             yield call.call(thisArg[0], this);
-  else                                 yield call(this);
 }
 async function*filter(call, ...thisArg) {
        if (this[Symbol.iterator])      yield*(await import("./filter/sync.js")).default.call(this, call, ...thisArg);
@@ -80,9 +56,18 @@ class AI {
   constructor (value) {
     if (value && value.constructor === AI) return value;
     if (AI.flyWeight.has(value)) return AI.flyWeight.get(value);
-    this.value = value;
-    value === Object(value) && AI.flyWeight.set(value, this);
+    if (value != null) {
+      this.value = value
+      value === Object(value) && AI.flyWeight.set(value, this);
+    }
   }
+  get [Symbol.iterator]() {
+    return Symbol.iterator in this.value
+      ? function*(){yield*ci(this.value)}
+      : null
+    ;
+  }
+
   then (resolve, reject) {
     return new AI(then.call(this.value, resolve, reject));
   }
@@ -95,11 +80,14 @@ class AI {
     return this;
   }
   forEach (call, ...thisArg) {
-    (forEach.call(this.value, call, ...thisArg));
+    (this[Symbol.iterator]      && import("./forEach/sync.js").then((forEach) => forEach.call(this, call, ...thisArg))) ||
+    (this[Symbol.asyncIterator] && import("./forEach/async.js").then((forEach) => forEach.call(this, call, ...thisArg))) ||
+    (this.then                  && this.then((context) => forEach.call(context, call, ...thisArg))) ||
+    (thisArg.length ? call.call(thisArg[0], this) : call(this));
     return this;
   }
   map (call, ...thisArg) {
-    return new AI(map.call(this.value, call, ...thisArg));
+    return new AI(load("./map/index.js").call(this, call, ...thisArg));
   }
   filter (call, ...thisArg) {
     return new AI(filter.call(this.value, call, ...thisArg));
@@ -111,20 +99,21 @@ class AI {
     return new AI(reverse.call(this.value));
   }
   reduce (call, ...thisArg) {
-    return new AI(reduce.call(this.value, call, ...thisArg));
+    return new AI(import("./reduce/index.js").then((reduce) => reduce.call(this, call, ...thisArg)));
   }
   reduceRight (call, ...thisArg) {
-    return new AI(reduceRight.call(this.value, call, ...thisArg));
+    return new AI(import("./reduceRight/index.js").then((reduceRight) => reduceRight.call(this, call, ...thisArg)));
+  }
+  get length () {
+    return load("./length/index.js").call(this.value);
   }
   get size () {
     return this.length;
   }
-  get length () {
-    return length.call(this.value);
-  }
   get fulfilled () {
     return new AI(fulfilled.call(this.value));
   }
+
   async*[Symbol.asyncIterator] () {
     if (this.value[Symbol.iterator])           yield*(await import("./ci/sync.js"))(this.value);
     else if (this.value[Symbol.asyncIterator]) yield*(await import("./ci/async.js"))(this.value);
@@ -141,14 +130,8 @@ async function*test(x) {
   }
 }
 
-AI
-  .from("123")
-// .map(Number)
-// .reverse()
-  .forEach(console.log)
-  .forEach(console.log)
-  .forEach(console.log)
-// .reduce((x, y) => x + y)
-// .then(console.log)
-;
-
+const inc = (x) => x + 1;
+const a = new AI([1, 2]).map(inc).then(console.log);
+setTimeout(() => {
+  const b = new AI([10, 20]).map(inc).then(console.log);
+}, 2000)
