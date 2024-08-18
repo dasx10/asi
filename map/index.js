@@ -1,8 +1,8 @@
-export var then = (resolve) => resolve(async function*map(call, ...thisArg) {
-  if (call.then) call = await call;
-  if (this[Symbol.iterator])           yield*(await import("./sync.js")).call(this, call, ...thisArg);
-  else if (this[Symbol.asyncIterator]) yield*(await import("./async.js")).call(this, call, ...thisArg);
-  else if (this.then)                  yield*map.call(await this, call, ...thisArg);
-  else if (thisArg.length)             yield call.call(thisArg[0], this);
-  else                                 yield call(this);
-});
+export var then = (resolve, reject) => import("../load.js").then((load) => (function map(call, ...thisArg) {
+  return (this[Symbol.iterator]      && load("./map/sync.js").call(this, call, ...thisArg)) ||
+         (this[Symbol.asyncIterator] && load("./map/async.js").call(this, call, ...thisArg)) ||
+         (this.then && this.then((values) => map.call(values, call, ...thisArg))) ||
+         ({*[Symbol.iterator]() {
+           yield thisArg.length ? call.call(thisArg[0], this) : call(this);
+         }})
+})).then(resolve, reject);

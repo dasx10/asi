@@ -1,6 +1,14 @@
-var def = (module) => module.default;
-var reverse = import("../reverse/async.js").then(def);
-var reduce  = import("../reduce/async.js").then(def);
-export default function (call, ...thisArg) {
-  return reverse.then((reverse) => reduce.then((reduce) => reduce.call(reverse.call(this), call, ...thisArg)));
-}
+export var then = (resolve) => resolve(function (call, ...thisArg) {
+  return Promise.all([
+    Array.fromAsync(this),
+    call
+  ]).then(({
+    0: values,
+    1: call
+  }) => values.reduceRight(
+    (create, value, index, values) => (create.then || value.then)
+      ? Promise.all([create, value]).then(({ 0: create, 1: value }) => call(create, value, index, this, values))
+      : call(create, value, index, this, values),
+    ...thisArg)
+  );
+});

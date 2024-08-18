@@ -1,24 +1,27 @@
 import ci from "./ci/sync.js";
-var modules = new Map();
-var loads = new Map();
-var load = (path) => function (...args) {
-  return modules.has(path)
-    ? modules.get(path).call(this, ...args)
-    : loads.has(path)
-      ? loads.get(path).then((module) => module.call(this, ...args))
-      : loads.set(path, import(path).then((module) => (loads.delete(path), modules.set(path, module), module))).get(path).then((module) => module.call(this, ...args))
-};
-
-async function*fulfilled() {
-       if (this[Symbol.iterator])      yield*(await import("./fulfilled/sync.js")).default.call(this);
-  else if (this[Symbol.asyncIterator]) yield*(await import("./fulfilled/async.js")).default.call(this);
-  else if (this.then)                  yield*fulfilled.call(await this);
-  else                                 yield this;
-}
+import load from "./load.js";
 
 class AI {
+  static range(start, end = 0, step = 1, additional = start < end) {
+    return new AI({*[Symbol.iterator](){
+      var index = start;
+      if (additional) while(index <= end) {
+        yield index;
+        index += step;
+      }
+      else while(index >= end) {
+        yield index;
+        index -= step;
+      }
+    }});
+  }
+
   static from (value) {
     return new AI(value);
+  }
+
+  static of (...values) {
+    return new AI(values);
   }
 
   static flyWeight = new WeakMap();
@@ -38,15 +41,29 @@ class AI {
   }
 
   then (resolve, reject) {
-    return new AI(load("./then/index.js").call(this, resolve, reject));
+    return (resolve || reject)
+      ? new AI(Promise.all([
+        load("./then/index.js"),
+        this.value,
+        resolve,
+        reject,
+      ]).then(({ 0: then, 1: value, 2: resolve, 3: reject }) => then.call(value, resolve, reject)))
+      : this
+    ;
   }
   catch (reject) {
-    return new AI(load("./then/index.js").call(this, null, reject));
+    return this.then(null, reject);
   }
   finally (done) {
     var exec = () => done();
-    load("./then/index.js").call(this, exec, exec);
+    this.then(exec, exec);
     return this;
+  }
+  interval(timeMs) {
+    return new AI(load("./interval/index.js").call(this, timeMs));
+  }
+  addInterval(timeMs) {
+    return new AI(load("./addInterval/index.js").call(this, timeMs));
   }
   forEach (call, ...thisArg) {
     load("./forEach/index.js").call(this, call, ...thisArg);
@@ -62,7 +79,7 @@ class AI {
     return new AI(load("./reject/index.js").call(this, call, ...thisArg));
   }
   reverse () {
-    return new AI(load("./reverse/index.js").call(this.value));
+    return new AI(load("./reverse/index.js").call(this));
   }
   reduce (call, ...thisArg) {
     return new AI(load("./reduce/index.js").call(this, call, ...thisArg));
@@ -77,11 +94,11 @@ class AI {
     return this.length;
   }
   get fulfilled () {
-    return new AI(fulfilled.call(this.value));
+    return new AI(load("./fulfilled/index.js").call(this));
   }
 
   async*[Symbol.asyncIterator] () {
-    if (this.value[Symbol.iterator])           yield*(await import("./ci/sync.js"))(this.value);
+         if (this.value[Symbol.iterator])      yield*(await import("./ci/sync.js"))(this.value);
     else if (this.value[Symbol.asyncIterator]) yield*(await import("./ci/async.js"))(this.value);
     else if (this.value.then)                  yield*new AI(await this.value);
     else                                       yield this.value;
@@ -97,7 +114,11 @@ async function*test(x) {
 }
 
 const inc = (x) => x + 1;
-const a = new AI(test(5)).map(inc).map(inc).then(console.log);
-setTimeout(() => {
-  const b = new AI([10, 20]).map(inc).then(console.log);
-}, 2000)
+
+AI
+  .from([1, 2, 3])
+  .map(inc)
+// .interval(250)
+// .reduceRight((a, b) => a + b, 0)
+  .then(Promise.resolve(console.log))
+;

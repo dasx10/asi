@@ -1,7 +1,7 @@
-export var then = (resolve) => resolve(async function*reverse() {
-       if (this.toReverse)             yield*this.toReverse();
-  else if (this[Symbol.iterator])      yield*(await import("./sync.js")).call(this);
-  else if (this[Symbol.asyncIterator]) yield*(await import("./async.js")).call(this);
-  else if (this.then)                  yield*reverse.call(await this);
-  else                                 yield this;
+export var then = (resolve) => resolve(function reverse() {
+       if (this.toReverse)             return this.toReverse();
+  else if (this[Symbol.iterator])      return Array.from(this).reverse();
+  else if (this[Symbol.asyncIterator]) return Array.fromAsync(this).then((values) => values.reverse());
+  else if (this.then)                  return this.then((values) => reverse.call(values));
+  else                                 return [this];
 });
