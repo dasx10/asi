@@ -1,4 +1,4 @@
-function executor(exec, call, ...thisArgs) {
+export var then = (resolve) => resolve(function executor(exec, call, ...thisArgs) {
   return call.then
     ? thisArgs.length > 0
       ? thisArgs[0].then
@@ -10,5 +10,4 @@ function executor(exec, call, ...thisArgs) {
         ? thisArgs[0].then((thisArg) => exec.call(this, call.bind(thisArg)))
         : exec.call(this, call.bind(thisArgs[0]))
       : exec.call(this, call)
-};
-export var then = (resolve) => resolve(executor);
+});

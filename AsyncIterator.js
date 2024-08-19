@@ -1,9 +1,4 @@
 import ci from "./ci/sync.js";
-import load from "./load.js";
-
-var reverse = function () {
-  return new AI(load("./reverse/index.js").call(this.value));
-};
 
 var then = (() => {
   var resolver = (right) => right
@@ -74,7 +69,6 @@ class AI {
       : null
     ;
   }
-
   then (resolve, reject) {
     return ((resolve || reject)
       ? new AI(then.call(this.value, resolve, reject))
@@ -90,50 +84,51 @@ class AI {
     return this;
   }
   interval(timeMs) {
-    return new AI(load("./interval/index.js").call(this, timeMs));
+    return new AI(import("./interval/index.js").then((interval) => interval.call(this, timeMs)));
   }
   addInterval(timeMs) {
-    return new AI(load("./addInterval/index.js").call(this, timeMs));
+    return new AI(import("./addInterval/index.js").then((addInterval) => addInterval.call(this, timeMs)));
   }
   forEach (call, ...thisArg) {
-    load("./forEach/index.js").call(this, call, ...thisArg);
+    import("./forEach/sync.js").then((forEach) => forEach.call(this, call, ...thisArg));
     return this;
   }
   map (call, ...thisArg) {
-    return new AI(load("./map/index.js").call(this, call, ...thisArg));
+    return new AI(import("./map/index.js").then((map) => map.call(this, call, ...thisArg)));
   }
   filter (call, ...thisArg) {
-    return new AI(load("./filter/index.js").call(this, call, ...thisArg));
+    return new AI(import("./filter/index.js").then((filter) => filter.call(this, call, ...thisArg)));
   }
   find (call, ...thisArg) {
-    return new AI(load("./find/index.js").call(this, call, ...thisArg));
+    return new AI(import("./find/index.js").then((find) => find.call(this, call, ...thisArg)));
   }
   reject (call, ...thisArg) {
-    return new AI(load("./reject/index.js").call(this, call, ...thisArg));
+    return new AI(import("./reject/index.js").then((reject) => reject.call(this, call, ...thisArg)));
   }
-
-  reverse   = reverse;
-  toReverse = reverse;
-
+  reverse () {
+    return new AI(import("./reverse/index.js").then((reverse) => reverse.call(this.value)));
+  }
+  toReverse () {
+    return new AI(import("./reverse/index.js").then((toReverse) => toReverse.call(this.value)));
+  }
   reduce (call, ...thisArg) {
-    return new AI(load("./reduce/index.js").call(this, call, ...thisArg));
+    return new AI(import("./reduce/index.js").then((reduce) => reduce.call(this, call, ...thisArg)));
   }
   reduceRight (call, ...thisArg) {
-    return new AI(load("./reduceRight/index.js").call(this, call, ...thisArg));
+    return new AI(import("./reduceRight/index.js").then((reduceRight) => reduceRight.call(this, call, ...thisArg)));
   }
   get length () {
-    return load("./length/index.js").call(this.value);
+    return import("./length/index.js").then((length) => length.call(this.value));
   }
   get size () {
     return this.length;
   }
   get fulfilled () {
-    return new AI(load("./fulfilled/index.js").call(this));
+    return new AI(import("./fulfilled/index.js").then((fulfilled) => fulfilled.call(this.value)));
   }
-
   async*[Symbol.asyncIterator] () {
-         if (this.value[Symbol.iterator])      yield*(await import("./ci/sync.js"))(this.value);
-    else if (this.value[Symbol.asyncIterator]) yield*(await import("./ci/async.js"))(this.value);
+         if (this.value[Symbol.iterator])      yield*ci.call(this.value);
+    else if (this.value[Symbol.asyncIterator]) yield*(await import("./ci/async.js").then((ci) => ci(this.value)));
     else if (this.value.then)                  yield*new AI(await this.value);
     else                                       yield this.value;
   }
@@ -151,12 +146,12 @@ const inc = Promise.resolve((x) => Promise.resolve(x + 1));
 const gt = Promise.resolve((x) => Promise.resolve(x > 1));
 
 AI
-  .from(test(4))
+  .from(Promise.resolve(test(10)))
   .filter(gt)
-  .filter(gt)
   .map(inc)
   .map(inc)
   .map(inc)
-  .map(inc)
+  .find(x => x == 4)
+// .size
   .then(console.log)
 ;
