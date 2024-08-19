@@ -141,19 +141,22 @@ class AI {
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 async function*test(x) {
-  for (var i = 0; i < x; i++) {
+  for (var i = 0; i <= x; i++) {
     await delay(100);
     yield await i;
   }
 }
 
-const inc = (x) => x + 1;
+const inc = Promise.resolve((x) => Promise.resolve(x + 1));
+const gt = Promise.resolve((x) => Promise.resolve(x > 1));
 
 AI
-  .from(Promise.reject([1, 2, 3]))
-  .catch(Promise.reject(x => x + 1))
-  .catch(Promise.reject(x => x + 1))
-  .catch(Promise.reject(x => x + 1))
-  .catch(Promise.reject(x => x + 1))
-  .catch(console.log)
+  .from(test(4))
+  .filter(gt)
+  .filter(gt)
+  .map(inc)
+  .map(inc)
+  .map(inc)
+  .map(inc)
+  .then(console.log)
 ;

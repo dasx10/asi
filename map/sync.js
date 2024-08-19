@@ -1,8 +1,17 @@
-export var then = (resolve) => resolve(function*(call, ...thisArg) {
-  const exec = thisArg.length ? call.bind(thisArg[0]) : call;
-  var index = 0;
-  for (const value of this) value && value.then
-    ? yield value.then((value) => exec(value, index++, this))
-    : yield exec(value, index++, this)
-  ;
-});
+export var then = (resolve) => import("../exec.js")
+  .then((exec) => function (call, ...thisArgs) {
+    return exec.call(
+      this,
+      function*(call) {
+        var value, index = 0;
+        for (value of this) yield (value && value.then)
+          ? value.then((value) => call(value, index++, this))
+          : call(value, index++, this)
+        ;
+      },
+      call,
+      ...thisArgs
+    );
+  })
+  .then(resolve)
+;

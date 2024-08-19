@@ -1,6 +1,14 @@
-export var then = (resolve) => resolve(async function*map(call, ...thisArg) {
-  const exec = thisArg.length ? call.bind(thisArg[0]) : call;
-  var index = 0;
-  for await (const value of this) yield exec(value, index++, this);
-  return this;
-});
+export var then = (resolve) => import("../exec.js")
+  .then((exec) => function (call, ...thisArgs) {
+    return exec.call(
+      this,
+      async function*(call) {
+        var value, index = 0;
+        for await (value of this) yield call(value, index++, this);
+      },
+      call,
+      ...thisArgs
+    );
+  })
+  .then(resolve)
+;
