@@ -1,6 +1,41 @@
 import ci from "./ci/sync.js";
 import load from "./load.js";
 
+var reverse = function () {
+  return new AI(load("./reverse/index.js").call(this.value));
+};
+
+var then = (() => {
+  var resolver = (right) => right
+    ? (values) => right.then
+      ? right.then((right) => right(values))
+      : right(values)
+    : (values) => values
+  ;
+
+  var rejecter = (left) => left
+    ? (error) => left.then
+      ? left.then(
+        (left) => left(error),
+        (is) => is && is.constructor === Function ? Promise.resolve(is(error)).then((next) => Promise.reject(next)) : Promise.reject(error)
+      )
+      : left(error)
+    : (error) => Promise.reject(error)
+  ;
+
+  return function then(right, left) {
+    return (
+      (this == null               && Promise.resolve(this).then(resolver(right), rejecter(left)))                      ||
+      (this[Symbol.iterator]      && Promise.all(this).then(resolver(right), rejecter(left)))                          ||
+      (this[Symbol.asyncIterator] && Array.fromAsync(this).then(resolver(right), rejecter(left)))                      ||
+      (this.then                  && Promise.resolve(this).then((values) => then.call(values, right), rejecter(left))) ||
+      ((this instanceof Error)    && (Promise.reject(this).catch(rejecter(left))))                                     ||
+      (Promise.resolve(this).then(resolver(right), rejecter(left)))
+    );
+  };
+})();
+
+
 class AI {
   static range(start, end = 0, step = 1, additional = start < end) {
     return new AI({*[Symbol.iterator](){
@@ -41,15 +76,10 @@ class AI {
   }
 
   then (resolve, reject) {
-    return (resolve || reject)
-      ? new AI(Promise.all([
-        load("./then/index.js"),
-        this.value,
-        resolve,
-        reject,
-      ]).then(({ 0: then, 1: value, 2: resolve, 3: reject }) => then.call(value, resolve, reject)))
+    return ((resolve || reject)
+      ? new AI(then.call(this.value, resolve, reject))
       : this
-    ;
+    );
   }
   catch (reject) {
     return this.then(null, reject);
@@ -75,12 +105,16 @@ class AI {
   filter (call, ...thisArg) {
     return new AI(load("./filter/index.js").call(this, call, ...thisArg));
   }
+  find (call, ...thisArg) {
+    return new AI(load("./find/index.js").call(this, call, ...thisArg));
+  }
   reject (call, ...thisArg) {
     return new AI(load("./reject/index.js").call(this, call, ...thisArg));
   }
-  reverse () {
-    return new AI(load("./reverse/index.js").call(this));
-  }
+
+  reverse   = reverse;
+  toReverse = reverse;
+
   reduce (call, ...thisArg) {
     return new AI(load("./reduce/index.js").call(this, call, ...thisArg));
   }
@@ -116,9 +150,10 @@ async function*test(x) {
 const inc = (x) => x + 1;
 
 AI
-  .from([1, 2, 3])
-  .map(inc)
-// .interval(250)
-// .reduceRight((a, b) => a + b, 0)
-  .then(Promise.resolve(console.log))
+  .from(Promise.reject([1, 2, 3]))
+  .catch(Promise.reject(x => x + 1))
+  .catch(Promise.reject(x => x + 1))
+  .catch(Promise.reject(x => x + 1))
+  .catch(Promise.reject(x => x + 1))
+  .catch(console.log)
 ;
