@@ -1,8 +1,3 @@
-var then = (resolve) => resolve(async function*fulfilled() {
-  for (const value of this) {
-    try {
-      if (value && value.then) yield await value;
-      else yield value;
-    } catch (_) {}
-  }
+export var then = (resolve) => resolve(function*fulfilled() {
+  return Promise.allSettled(this).then((values) => values.filter((settled) => settled.status === "fulfilled").map((settled) => settled.value));
 });

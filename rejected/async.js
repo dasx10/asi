@@ -5,7 +5,9 @@ export var then = (resolve) => resolve(async function*fulfilled() {
     try{
       is = await iterator.next();
       if (is.done) return is.value;
-      yield is.value;
-    }catch(_){}
+      (is.value && is.value.then) ? await is.value : is.value;
+    } catch (error) {
+      yield error;
+    }
   }
 });

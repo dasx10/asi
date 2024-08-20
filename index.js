@@ -31,7 +31,12 @@ var then = (() => {
 })();
 
 
+var emptyIterator = (function*(){})()
 class AI {
+  static get empty () {
+    return new AI(emptyIterator);
+  }
+
   static range(start, end = 0, step = 1, additional = start < end) {
     return new AI({*[Symbol.iterator](){
       var index = start;
@@ -117,6 +122,28 @@ class AI {
   reduceRight (call, ...thisArg) {
     return new AI(import("./reduceRight/index.js").then((reduceRight) => reduceRight.call(this, call, ...thisArg)));
   }
+  concat (...values) {
+    return values.length
+      ? new AI(import("./concat/index.js").then((concat) => concat.call(this.value, ...values)))
+      : this
+    ;
+  }
+  concatRight (...values) {
+    return values.length
+      ? this.concat.apply(AI.empty, values.concat(this))
+      : this;
+  }
+  append (...values) {
+    return values.length
+      ? new AI(import("./append/index.js").then((append) => append.call(this.value, ...values)))
+      : this
+    ;
+  }
+  prepend (...values) {
+    return values.length
+      ? new AI(import("./prepend/index.js").then((prepend) => prepend.call(this.value, ...values)))
+      : this;
+  }
   get length () {
     return import("./length/index.js").then((length) => length.call(this.value));
   }
@@ -126,8 +153,12 @@ class AI {
   get fulfilled () {
     return new AI(import("./fulfilled/index.js").then((fulfilled) => fulfilled.call(this.value)));
   }
+  get settled () {
+    return new AI(import("./settled/index.js").then((settled) => settled.call(this.value)));
+  }
   async*[Symbol.asyncIterator] () {
-         if (this.value[Symbol.iterator])      yield*ci.call(this.value);
+         if (this.value == null)               yield this.value;
+    else if (this.value[Symbol.iterator])      yield*ci(this.value);
     else if (this.value[Symbol.asyncIterator]) yield*(await import("./ci/async.js").then((ci) => ci(this.value)));
     else if (this.value.then)                  yield*new AI(await this.value);
     else                                       yield this.value;
@@ -142,16 +173,9 @@ async function*test(x) {
   }
 }
 
-const inc = Promise.resolve((x) => Promise.resolve(x + 1));
-const gt = Promise.resolve((x) => Promise.resolve(x > 1));
-
+var readFile = import("fs/promises").then((({ readFile }) => (path) => readFile(path, "utf8")));
 AI
-  .from(Promise.resolve(test(10)))
-  .filter(gt)
-  .map(inc)
-  .map(inc)
-  .map(inc)
-  .find(x => x == 4)
-// .size
+  .from(["./index.js", "./Promise.js"])
+  .map(readFile)
+  .settled
   .then(console.log)
-;
