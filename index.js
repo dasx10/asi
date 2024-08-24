@@ -1,4 +1,13 @@
-import ci from "./ci/sync.js";
+var cache = new WeakMap();
+function*cloneIterator(iterator) {
+  var i = cache.get(iterator);
+  i?(yield*i):cache.set(iterator,i=[]);
+  for (const value of iterator){i.push(value);yield value;}
+}
+function ci(iterator) {
+  var iterable = iterator[Symbol.iterator]();
+  return (iterator === iterable) ? cloneIterator(iterator) : iterable;
+}
 
 var then = (() => {
   var resolver = (right) => right
@@ -15,7 +24,7 @@ var then = (() => {
         (is) => is && is.constructor === Function ? Promise.resolve(is(error)).then((next) => Promise.reject(next)) : Promise.reject(error)
       )
       : left(error)
-    : (error) => Promise.reject(error)
+    : Promise.reject
   ;
 
   return function then(right, left) {
@@ -25,7 +34,7 @@ var then = (() => {
       (this[Symbol.asyncIterator] && Array.fromAsync(this).then(resolver(right), rejecter(left)))                      ||
       (this.then                  && Promise.resolve(this).then((values) => then.call(values, right), rejecter(left))) ||
       ((this instanceof Error)    && (Promise.reject(this).catch(rejecter(left))))                                     ||
-      (Promise.resolve(this).then(resolver(right), rejecter(left)))
+                                     (Promise.resolve(this).then(resolver(right), rejecter(left)))
     );
   };
 })();
@@ -69,11 +78,11 @@ class AI {
     }
   }
   get [Symbol.iterator]() {
-    return Symbol.iterator in this.value
+    return (this.value) && (Symbol.iterator in this.value)
       ? function*(){yield*ci(this.value)}
       : null
-    ;
-  }
+   ;
+ }
   then (resolve, reject) {
     return ((resolve || reject)
       ? new AI(then.call(this.value, resolve, reject))
@@ -144,6 +153,18 @@ class AI {
       ? new AI(import("./prepend/index.js").then((prepend) => prepend.call(this.value, ...values)))
       : this;
   }
+  slice (start, end) {
+    return new AI(import("./slice/index.js").then((slice) => slice.call(this.value, start, end)));
+  }
+  take (length) {
+    return new AI(import("./take/index.js").then((take) => take.call(this.value, length)));
+  }
+  drop (length) {
+    return new AI(import("./drop/index.js").then((drop) => drop.call(this.value, length)));
+  }
+  step (value) {
+    return new AI(import("./step/index.js").then((step) => step.call(this.value, value)));
+  }
   get length () {
     return import("./length/index.js").then((length) => length.call(this.value));
   }
@@ -173,9 +194,11 @@ async function*test(x) {
   }
 }
 
-var readFile = import("fs/promises").then((({ readFile }) => (path) => readFile(path, "utf8")));
+var a = Iterator.from([1, 2, 3]);
 AI
-  .from(["./index.js", "./Promise.js"])
-  .map(readFile)
-  .settled
+  .from(a)
+  .slice(0, Promise.resolve(2))
+  .take(3)
+  .map(String)
   .then(console.log)
+export default AI;
